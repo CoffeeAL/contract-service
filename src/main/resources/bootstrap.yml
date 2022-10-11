@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: contract-service
+  profile:
+    active: dev
+  cloud:
+    config:
+      import: optional:config-server:http://localhost:8888
