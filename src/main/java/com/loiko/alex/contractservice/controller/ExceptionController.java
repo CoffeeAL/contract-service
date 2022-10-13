@@ -19,16 +19,14 @@ import static java.util.Collections.singletonMap;
 @EnableWebMvc
 public class ExceptionController extends ResponseEntityExceptionHandler {
 
-    @ExceptionHandler(value = { Exception.class })
-    public @ResponseBody
-    ResponseEntity<ResponseWrapper> handleException(HttpServletRequest request,
-                                                    ResponseWrapper responseWrapper){
+    @ExceptionHandler(value = {Exception.class})
+    public @ResponseBody ResponseEntity<ResponseWrapper> handleException(HttpServletRequest request,
+                                                    ResponseWrapper responseWrapper) {
         return ResponseEntity.ok(responseWrapper);
     }
 
     @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ResponseWrapper> handleIOException(HttpServletRequest request, RuntimeException e){
-
+    public ResponseEntity<ResponseWrapper> handleIOException(HttpServletRequest request, RuntimeException e) {
         RestErrorList errorList = new RestErrorList(HttpStatus.NOT_ACCEPTABLE, new ErrorMessage(e.getMessage(), e.getMessage()));
         ResponseWrapper responseWrapper = new ResponseWrapper(null, singletonMap("status", HttpStatus.NOT_ACCEPTABLE), errorList);
         return ResponseEntity.ok(responseWrapper);

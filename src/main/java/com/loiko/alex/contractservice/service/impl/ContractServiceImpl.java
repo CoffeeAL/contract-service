@@ -6,16 +6,24 @@ import com.loiko.alex.contractservice.model.Contract;
 import com.loiko.alex.contractservice.repository.ContractRepository;
 import com.loiko.alex.contractservice.service.ContractService;
 import com.loiko.alex.contractservice.service.client.*;
+import com.loiko.alex.contractservice.utils.UserContextHolder;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.TimeoutException;
 
 @Service
 public class ContractServiceImpl implements ContractService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ContractServiceImpl.class);
 
     @Autowired
     private MessageSource messages;
@@ -109,7 +117,46 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
-    public List<Contract> getContractsByCarId(String carId) {
+    @CircuitBreaker(name = "contractService", fallbackMethod = "buildFallbackContractList")
+    @RateLimiter(name = "contractService", fallbackMethod = "buildFallbackContractList")
+    @Retry(name = "retryContractService", fallbackMethod = "buildFallbackContractList")
+    @Bulkhead(name = "bulkheadContractService", type= Bulkhead.Type.THREADPOOL, fallbackMethod = "buildFallbackContractList")
+    public List<Contract> getContractsByCarId(String carId) throws TimeoutException {
+        logger.debug("getContractsByCarId Correlation id: {}", UserContextHolder.getContext().getCorrelationId());
+        randomlyRunLong();
         return repository.getContractsByCarId(carId);
+    }
+
+    @SuppressWarnings("unused")
+    private List<Contract> buildFallbackContractList(String carId, Throwable t){
+        List<Contract> fallbackList = new ArrayList<>();
+        Contract contract = new Contract();
+        contract.setContractId("0000000-00-00000");
+        contract.setCarId(carId);
+        contract.setCarModel("Sorry no contract information currently available");
+        fallbackList.add(contract);
+        return fallbackList;
+    }
+
+    private void randomlyRunLong() throws TimeoutException{
+        Random rand = new Random();
+        int randomNum = rand.nextInt((3 - 1) + 1) + 1;
+        if (randomNum == 3) {
+            sleep();
+        }
+    }
+
+    private void sleep() throws TimeoutException{
+        try {
+            Thread.sleep(5000);
+            throw new TimeoutException();
+        } catch (InterruptedException e) {
+            logger.error(e.getMessage());
+        }
+    }
+
+    @CircuitBreaker(name = "carService")
+    private Car getCar(String carId) {
+        return carRestTemplateClient.getCar(carId);
     }
 }
